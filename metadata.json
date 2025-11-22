@@ -1,0 +1,8 @@
+{
+  "name": "Imperium RH",
+  "description": "L'Excellence en Intelligence Artificielle - Génération Multimodale Premium",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
