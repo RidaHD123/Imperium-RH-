@@ -1,6 +1,6 @@
 {
-  "name": "Imperium RH",
-  "description": "L'Excellence en Intelligence Artificielle - Génération Multimodale Premium",
+  "name": "Imperium AI - Claude Style",
+  "description": "Assistant IA multimodal premium spécialisé dans les études de faisabilité, rapports, et génération de code.",
   "requestFramePermissions": [
     "microphone",
     "camera"

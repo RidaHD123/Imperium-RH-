@@ -1,28 +1,36 @@
 
 import React, { useState } from 'react';
-import { AppMode, Language } from './types';
+import { AppMode, Language, Artifact } from './types';
 import { ChatView } from './components/ChatView';
 import { ImageGenView } from './components/ImageGenView';
 import { VideoGenView } from './components/VideoGenView';
 import { LiveView } from './components/LiveView';
+import { ExcelGenView } from './components/ExcelGenView';
 import { translations } from './translations';
-import { MessageSquare, Image as ImageIcon, Video, Mic, Menu, Crown, Globe } from 'lucide-react';
+import { MessageSquare, Image as ImageIcon, Video, Mic, Menu, Crown, Globe, X, Maximize2, Minimize2, TableProperties } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.CHAT);
   const [lang, setLang] = useState<Language>('fr');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [activeArtifact, setActiveArtifact] = useState<Artifact | null>(null);
+  const [isArtifactMaximized, setIsArtifactMaximized] = useState(false);
 
   const t = translations[lang];
   const isRtl = lang === 'ar';
 
   const renderContent = () => {
     switch (mode) {
-      case AppMode.CHAT: return <ChatView lang={lang} />;
+      case AppMode.CHAT: return <ChatView lang={lang} onArtifactSelect={setActiveArtifact} />;
       case AppMode.IMAGE: return <ImageGenView lang={lang} />;
       case AppMode.VIDEO: return <VideoGenView lang={lang} />;
       case AppMode.LIVE: return <LiveView lang={lang} />;
-      default: return <ChatView lang={lang} />;
+      case AppMode.EXCEL: return <ExcelGenView lang={lang} />;
+      default: return <ChatView lang={lang} onArtifactSelect={setActiveArtifact} />;
     }
   };
 
@@ -99,6 +107,7 @@ const App: React.FC = () => {
 
           <nav className="flex-1 space-y-3">
             <NavButton targetMode={AppMode.CHAT} icon={MessageSquare} label={t.nav.chat} />
+            <NavButton targetMode={AppMode.EXCEL} icon={TableProperties} label={t.nav.excel || 'Excel AI'} />
             <NavButton targetMode={AppMode.IMAGE} icon={ImageIcon} label={t.nav.image} />
             <NavButton targetMode={AppMode.VIDEO} icon={Video} label={t.nav.video} />
             <NavButton targetMode={AppMode.LIVE} icon={Mic} label={t.nav.live} />
@@ -119,25 +128,111 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col h-full min-w-0 bg-black relative">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-row h-full min-w-0 bg-black relative">
         {/* Background texture */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-900/10 via-black to-black pointer-events-none" />
         
-        {/* Mobile Header */}
-        <header className="md:hidden bg-zinc-950 border-b border-amber-900/20 p-4 flex items-center gap-4 relative z-10">
-          <button onClick={() => setIsMenuOpen(true)} className="p-2 hover:bg-zinc-900 rounded-lg text-amber-500">
-            <Menu className="w-6 h-6" />
-          </button>
-          <span className="font-bold text-gold-shiny tracking-widest">IMPERIUM RH</span>
-        </header>
+        {/* Main Content */}
+        <main className={`flex-1 flex flex-col h-full min-w-0 relative z-10 transition-all duration-500 ${activeArtifact && !isArtifactMaximized ? 'md:w-1/2' : 'w-full'}`}>
+          {/* Mobile Header */}
+          <header className="md:hidden bg-zinc-950 border-b border-amber-900/20 p-4 flex items-center gap-4 relative z-10">
+            <button onClick={() => setIsMenuOpen(true)} className="p-2 hover:bg-zinc-900 rounded-lg text-amber-500">
+              <Menu className="w-6 h-6" />
+            </button>
+            <span className="font-bold text-gold-shiny tracking-widest">IMPERIUM RH</span>
+          </header>
 
-        <div className="flex-1 h-full overflow-hidden p-0 md:p-6 relative z-10">
-          {renderContent()}
-        </div>
-      </main>
+          <div className="flex-1 h-full overflow-hidden p-0 md:p-6">
+            {renderContent()}
+          </div>
+        </main>
+
+        {/* Artifacts Panel (Claude-like) */}
+        <AnimatePresence>
+          {activeArtifact && (
+            <motion.aside
+              initial={{ x: isRtl ? '-100%' : '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: isRtl ? '-100%' : '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className={`
+                fixed md:relative inset-y-0 ${isRtl ? 'left-0' : 'right-0'} z-40 
+                ${isArtifactMaximized ? 'w-full' : 'w-full md:w-1/2'} 
+                bg-zinc-950 border-l border-amber-900/20 flex flex-col shadow-2xl
+              `}
+            >
+              <div className="flex items-center justify-between p-4 border-b border-amber-900/20 bg-zinc-900/50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-500/10 rounded-lg">
+                    <Crown className="w-4 h-4 text-amber-500" />
+                  </div>
+                  <h2 className="text-sm font-bold text-gold-shiny uppercase tracking-widest truncate max-w-[200px]">
+                    {activeArtifact.title}
+                  </h2>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setIsArtifactMaximized(!isArtifactMaximized)}
+                    className="p-2 hover:bg-white/5 rounded-lg text-zinc-400 transition-colors"
+                  >
+                    {isArtifactMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                  </button>
+                  <button 
+                    onClick={() => setActiveArtifact(null)}
+                    className="p-2 hover:bg-white/5 rounded-lg text-zinc-400 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-auto p-6 bg-black/40">
+                <div className="max-w-4xl mx-auto">
+                  {activeArtifact.type === 'code' ? (
+                    <pre className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800 font-mono text-sm text-amber-200/90 overflow-x-auto">
+                      <code>{activeArtifact.content}</code>
+                    </pre>
+                  ) : (
+                    <div className="prose prose-invert prose-amber max-w-none">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {activeArtifact.content}
+                      </ReactMarkdown>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="p-4 border-t border-amber-900/20 bg-zinc-900/30 flex justify-end gap-3">
+                <button 
+                  onClick={() => {
+                    navigator.clipboard.writeText(activeArtifact.content);
+                  }}
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs font-bold transition-all"
+                >
+                  COPIER
+                </button>
+                <button 
+                  onClick={() => {
+                    const blob = new Blob([activeArtifact.content], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    const extension = activeArtifact.type === 'code' ? 'txt' : activeArtifact.type === 'data' ? 'csv' : 'md';
+                    a.download = `${activeArtifact.title.replace(/\s+/g, '_')}.${extension}`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="px-4 py-2 bg-gold-shiny text-black rounded-lg text-xs font-bold transition-all hover:opacity-90"
+                >
+                  TÉLÉCHARGER
+                </button>
+              </div>
+            </motion.aside>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 };
 
 export default App;
+

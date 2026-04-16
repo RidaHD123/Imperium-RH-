@@ -10,6 +10,24 @@ interface VideoGenViewProps {
   lang: Language;
 }
 
+const FEATURED_TEMPLATES = [
+  {
+    label: "Aladdin's Lamp",
+    prompt: "A cute and magical golden Aladdin's lamp on a dark elegant background, the famous blue Genie from Aladdin (Disney style, muscular, big smile, energetic personality) is emerging smoothly from the lamp's spout in a swirl of sparkling blue smoke and golden sparks. The Genie is moving happily: waving his hands, nodding his head, and dancing slightly in a fun loop. Magical glowing particles and stars floating around, vibrant colors, cinematic lighting, smooth animation, seamless loop, high quality 4K, cheerful and entertaining mood, perfect for loading screen animation, 6-8 seconds duration.",
+    icon: "✨"
+  },
+  {
+    label: "Cyberpunk City",
+    prompt: "A futuristic cyberpunk city at night with neon lights reflecting on wet streets, flying cars passing by, cinematic lighting, 4K, highly detailed.",
+    icon: "🌃"
+  },
+  {
+    label: "Nature Drone",
+    prompt: "A cinematic drone shot of a lush green forest with a waterfall, misty mountains in the background, 4K, hyper-realistic.",
+    icon: "🌲"
+  }
+];
+
 export const VideoGenView: React.FC<VideoGenViewProps> = ({ lang }) => {
   const [prompt, setPrompt] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -51,7 +69,7 @@ export const VideoGenView: React.FC<VideoGenViewProps> = ({ lang }) => {
   const handleGenerateVideo = async () => {
     if (!selectedImage && !prompt) return;
     
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.API_KEY || '' });
     
     setIsGenerating(true);
     setGeneratedVideoUrl(null);
@@ -61,7 +79,7 @@ export const VideoGenView: React.FC<VideoGenViewProps> = ({ lang }) => {
       
       if (selectedImage) {
           operation = await ai.models.generateVideos({
-            model: 'veo-3.1-fast-generate-preview',
+            model: 'veo-3.1-generate-preview',
             prompt: prompt || "Cinematic shot",
             image: {
                 imageBytes: selectedImage,
@@ -69,30 +87,30 @@ export const VideoGenView: React.FC<VideoGenViewProps> = ({ lang }) => {
             },
             config: {
                 numberOfVideos: 1,
-                resolution: '720p',
+                resolution: '1080p',
                 aspectRatio: aspectRatio
             }
           });
       } else {
           operation = await ai.models.generateVideos({
-            model: 'veo-3.1-fast-generate-preview',
+            model: 'veo-3.1-generate-preview',
             prompt: prompt,
             config: {
                 numberOfVideos: 1,
-                resolution: '720p',
+                resolution: '1080p',
                 aspectRatio: aspectRatio
             }
           });
       }
 
       while (!operation.done) {
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await new Promise(resolve => setTimeout(resolve, 10000));
         operation = await ai.operations.getVideosOperation({operation: operation});
       }
 
       if (operation.response?.generatedVideos?.[0]?.video?.uri) {
         const uri = operation.response.generatedVideos[0].video.uri;
-        const finalUrl = `${uri}&key=${process.env.API_KEY}`;
+        const finalUrl = `${uri}&key=${process.env.GEMINI_API_KEY || process.env.API_KEY || ''}`;
         setGeneratedVideoUrl(finalUrl);
       } else {
           throw new Error("No video URI in response");
@@ -133,6 +151,21 @@ export const VideoGenView: React.FC<VideoGenViewProps> = ({ lang }) => {
           <p className="text-zinc-500 mt-1">{t.video.subtitle}</p>
         </div>
         <Clapperboard className="w-8 h-8 text-amber-600" />
+      </div>
+
+      {/* Featured Templates */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {FEATURED_TEMPLATES.map((tpl, i) => (
+          <button
+            key={i}
+            onClick={() => setPrompt(tpl.prompt)}
+            className="p-4 bg-zinc-900/50 border border-zinc-800 rounded-2xl hover:border-amber-500/40 transition-all text-left group"
+          >
+            <div className="text-2xl mb-2">{tpl.icon}</div>
+            <div className="text-xs font-bold text-amber-100 group-hover:text-amber-400 transition-colors">{tpl.label}</div>
+            <div className="text-[10px] text-zinc-500 mt-1 line-clamp-2">{tpl.prompt}</div>
+          </button>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1">

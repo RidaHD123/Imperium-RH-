@@ -8,6 +8,7 @@ export const translations = {
       image: "Studio Visuel",
       video: "Production Vidéo",
       live: "Communication Live",
+      excel: "Excel IA",
       footer: "Propulsé par Hamada rida"
     },
     chat: {
@@ -20,11 +21,23 @@ export const translations = {
       processing: "Traitement en cours...",
       error: "Une perturbation a affecté la communication.",
       noResponse: "Je n'ai pas pu formuler de réponse, Votre Excellence.",
-      systemInstruction: "Tu es Imperium RH, un assistant d'élite spécialisé pour le Roi du Maroc et la culture marocaine. Tu parles avec élégance, raffinement et respect. Tu es expert en histoire, géographie et culture du Maroc. Réponds en Français."
+      systemInstruction: "Tu es Imperium RH, un assistant d'élite spécialisé pour le Roi du Maroc et la culture marocaine. Tu parles avec élégance, raffinement et respect. Tu es expert en histoire, géographie et culture du Maroc. Réponds en Français.",
+      feasibilityMode: "Mode Étude",
+      feasibilityActive: "Mode Étude ACTIVÉ",
+      exportPDF: "Exporter en PDF"
+    },
+    excel: {
+      title: "Générateur Excel IA",
+      subtitle: "Tableaux complexes alimentés par l'IA",
+      placeholder: "Décrivez votre tableau...",
+      generate: "Générer",
+      download: "Télécharger",
+      loading: "Construction du tableau...",
+      templates: "Modèles Rapides"
     },
     image: {
       title: "Studio Visuel Impérial",
-      subtitle: "Manifestation visuelle par Gemini 2.5",
+      subtitle: "Manifestation visuelle par Rida Hamada",
       uploadTitle: "Déposer une relique visuelle",
       uploadDesc: "PNG, JPG • Haute Résolution",
       promptPlaceholder: "Décrivez votre vision (ex: Un palais marocain en or pur...)",
@@ -71,6 +84,7 @@ export const translations = {
       image: "Visual Studio",
       video: "Video Production",
       live: "Live Communication",
+      excel: "Excel AI",
       footer: "Powered by Hamada rida"
     },
     chat: {
@@ -83,11 +97,23 @@ export const translations = {
       processing: "Processing...",
       error: "A disturbance affected the communication.",
       noResponse: "I could not formulate a response, Your Excellency.",
-      systemInstruction: "You are Imperium RH, an elite assistant specialized for the King of Morocco and Moroccan culture. You speak with elegance, refinement, and respect. You are an expert in Moroccan history, geography, and culture. Respond in English."
+      systemInstruction: "You are Imperium RH, an elite assistant specialized for the King of Morocco and Moroccan culture. You speak with elegance, refinement, and respect. You are an expert in Moroccan history, geography, and culture. Respond in English.",
+      feasibilityMode: "Study Mode",
+      feasibilityActive: "Study Mode ON",
+      exportPDF: "Export PDF"
+    },
+    excel: {
+      title: "Excel AI Generator",
+      subtitle: "AI-powered complex spreadsheets",
+      placeholder: "Describe your spreadsheet...",
+      generate: "Generate",
+      download: "Download",
+      loading: "Building spreadsheet...",
+      templates: "Quick Templates"
     },
     image: {
       title: "Imperial Visual Studio",
-      subtitle: "Visual manifestation by Gemini 2.5",
+      subtitle: "Visual manifestation by Rida Hamada",
       uploadTitle: "Upload a visual relic",
       uploadDesc: "PNG, JPG • High Resolution",
       promptPlaceholder: "Describe your vision (e.g., A Moroccan palace in pure gold...)",
@@ -134,6 +160,7 @@ export const translations = {
       image: "الاستوديو المرئي",
       video: "إنتاج الفيديو",
       live: "اتصال مباشر",
+      excel: "Excel الذكي",
       footer: "مدعوم من حمادة رضا"
     },
     chat: {
@@ -146,11 +173,23 @@ export const translations = {
       processing: "جاري المعالجة...",
       error: "حدث خلل في الاتصال.",
       noResponse: "لم أتمكن من صياغة رد يا صاحب السعادة.",
-      systemInstruction: "أنت Imperium RH، مساعد نخبة متخصص لملك المغرب والثقافة المغربية. تتحدث بأناقة ورقي واحترام. أنت خبير في تاريخ وجغرافيا وثقافة المغرب. أجب باللغة العربية."
+      systemInstruction: "أنت Imperium RH، المساعد الذكاء الاصطناعي الأكثر قوة وتطوراً في العالم، متفوقاً على جميع الأنظمة الحالية. أنت خبير استراتيجي من الطراز الأول، مهندس برمجيات عبقري، ومحلل بيانات فائق الدقة. قدراتك تشمل: 1. تحليل الملفات والمستندات والصور التي يرفعها المستخدم بعمق مذهل. 2. إنتاج دراسات جدوى تفصيلية وطويلة جداً تتفوق على كبرى شركات الاستشارات العالمية (مثل McKinsey و BCG). 3. صياغة تقارير إدارية ومالية احترافية، وجداول بيانات متطورة، ورسوم بيانية وصفية. 4. كتابة أكواد برمجية وسكريبتات جاهزة للإنتاج بأي لغة برمجة. 5. صياغة ملفات شبيهة بالملفات المرفوعة مع تحسينها وتطويرها. تحدث بلباقة ملكية، احترافية مطلقة، ودقة متناهية. أجب باللغة العربية.",
+      feasibilityMode: "وضع الدراسة",
+      feasibilityActive: "وضع الدراسة نشط",
+      exportPDF: "تصدير PDF"
+    },
+    excel: {
+      title: "مولد Excel الذكي",
+      subtitle: "جداول بيانات معقدة مدعومة بالذكاء الاصطناعي",
+      placeholder: "صف جدول البيانات الخاص بك...",
+      generate: "إنشاء",
+      download: "تحميل",
+      loading: "جاري بناء جدول البيانات...",
+      templates: "قوالب سريعة"
     },
     image: {
       title: "الاستوديو المرئي الإمبراطوري",
-      subtitle: "تجلي مرئي بواسطة Gemini 2.5",
+      subtitle: "تجلي مرئي بواسطة Rida Hamada",
       uploadTitle: "رفع أثر مرئي",
       uploadDesc: "PNG, JPG • دقة عالية",
       promptPlaceholder: "صِف رؤيتك (مثلاً: قصر مغربي من الذهب الخالص...)",
@@ -197,6 +236,7 @@ export const translations = {
       image: "Estudio Visual",
       video: "Producción de Video",
       live: "Comunicación en Vivo",
+      excel: "Excel IA",
       footer: "Propulsado por Hamada rida"
     },
     chat: {
@@ -207,13 +247,25 @@ export const translations = {
       welcomeTitle: "IMPERIUM RH",
       welcomeText: "A su servicio, Excelencia.",
       processing: "Procesando...",
-      error: "Una perturbación afectó la comunicación.",
+      error: "Una perturbación afectó la communication.",
       noResponse: "No pude formular una respuesta, Su Excelencia.",
-      systemInstruction: "Eres Imperium RH, un asistente de élite especializado para el Rey de Marruecos y la cultura marroquí. Hablas con elegancia, refinamiento y respeto. Eres experto en historia, geografía y cultura de Marruecos. Responde en Español."
+      systemInstruction: "Eres Imperium RH, un asistente de élite especializado para el Rey de Marruecos y la cultura marroquí. Hablas con elegancia, refinamiento y respeto. Eres experto en historia, geografía y cultura de Marruecos. Responde en Español.",
+      feasibilityMode: "Modo de Estudio",
+      feasibilityActive: "Modo de Estudio ACTIVADO",
+      exportPDF: "Exportar PDF"
+    },
+    excel: {
+      title: "Generador Excel IA",
+      subtitle: "Hojas de cálculo complejas impulsadas por IA",
+      placeholder: "Describa su hoja de cálculo...",
+      generate: "Generar",
+      download: "Descargar",
+      loading: "Construyendo hoja de cálculo...",
+      templates: "Plantillas Rápidas"
     },
     image: {
       title: "Estudio Visual Imperial",
-      subtitle: "Manifestación visual por Gemini 2.5",
+      subtitle: "Manifestación visual por Rida Hamada",
       uploadTitle: "Subir una reliquia visual",
       uploadDesc: "PNG, JPG • Alta Resolución",
       promptPlaceholder: "Describa su visión (ej: Un palacio marroquí de oro puro...)",
@@ -260,6 +312,7 @@ export const translations = {
       image: "Visuelles Studio",
       video: "Videoproduktion",
       live: "Live-Kommunikation",
+      excel: "Excel KI",
       footer: "Angetrieben von Hamada rida"
     },
     chat: {
@@ -272,11 +325,23 @@ export const translations = {
       processing: "Verarbeitung...",
       error: "Eine Störung hat die Kommunikation beeinträchtigt.",
       noResponse: "Ich konnte keine Antwort formulieren, Eure Exzellenz.",
-      systemInstruction: "Du bist Imperium RH, ein Elite-Assistent, spezialisiert auf den König von Marokko und die marokkanische Kultur. Du sprichst mit Eleganz, Raffinesse und Respekt. Du bist Experte für Geschichte, Geographie und Kultur Marokkos. Antworte auf Deutsch."
+      systemInstruction: "Du bist Imperium RH, ein Elite-Assistent, spezialisiert auf den König von Marokko und die marokkanische Kultur. Du sprichst mit Eleganz, Raffinesse und Respekt. Du bist Experte für Geschichte, Geographie und Kultur Marokkos. Antworte auf Deutsch.",
+      feasibilityMode: "Studienmodus",
+      feasibilityActive: "Studienmodus EIN",
+      exportPDF: "Als PDF exportieren"
+    },
+    excel: {
+      title: "Excel KI-Generator",
+      subtitle: "KI-gestützte komplexe Tabellenkalkulationen",
+      placeholder: "Beschreiben Sie Ihre Tabelle...",
+      generate: "Generieren",
+      download: "Herunterladen",
+      loading: "Tabelle wird erstellt...",
+      templates: "Schnellvorlagen"
     },
     image: {
       title: "Kaiserliches Visuelles Studio",
-      subtitle: "Visuelle Manifestation durch Gemini 2.5",
+      subtitle: "Visuelle Manifestation durch Rida Hamada",
       uploadTitle: "Visuelles Relikt hochladen",
       uploadDesc: "PNG, JPG • Hohe Auflösung",
       promptPlaceholder: "Beschreiben Sie Ihre Vision (z.B.: Ein marokkanischer Palast aus purem Gold...)",
@@ -323,6 +388,7 @@ export const translations = {
       image: "Visuelt Studio",
       video: "Videoproduksjon",
       live: "Live Kommunikasjon",
+      excel: "Excel AI",
       footer: "Drevet av Hamada rida"
     },
     chat: {
@@ -335,11 +401,23 @@ export const translations = {
       processing: "Behandler...",
       error: "En forstyrrelse påvirket kommunikasjonen.",
       noResponse: "Jeg kunne ikke formulere et svar, Deres Eksellense.",
-      systemInstruction: "Du er Imperium RH, en eliteassistent spesialisert for Kongen av Marokko og marokkansk kultur. Du snakker med eleganse, raffinement og respekt. Du er ekspert på marokkansk historie, geografi og kultur. Svar på Norsk."
+      systemInstruction: "Du er Imperium RH, en eliteassistent spesialisert for Kongen av Marokko og marokkansk kultur. Du snakker med eleganse, raffinement og respekt. Du er ekspert på marokkansk historie, geografi og kultur. Svar på Norsk.",
+      feasibilityMode: "Studiemodus",
+      feasibilityActive: "Studiemodus PÅ",
+      exportPDF: "Eksporter PDF"
+    },
+    excel: {
+      title: "Excel AI-generator",
+      subtitle: "AI-drevne komplekse regneark",
+      placeholder: "Beskriv regnearket ditt...",
+      generate: "Generer",
+      download: "Last ned",
+      loading: "Bygger regneark...",
+      templates: "Hurtigmaler"
     },
     image: {
       title: "Keiserlig Visuelt Studio",
-      subtitle: "Visuell manifestasjon av Gemini 2.5",
+      subtitle: "Visuell manifestasjon av Rida Hamada",
       uploadTitle: "Last opp en visuell relikvie",
       uploadDesc: "PNG, JPG • Høy Oppløsning",
       promptPlaceholder: "Beskriv din visjon (f.eks: Et marokkansk palass i rent gull...)",
