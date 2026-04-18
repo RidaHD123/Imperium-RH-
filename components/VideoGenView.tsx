@@ -1,8 +1,12 @@
-
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import { fileToBase64 } from '../utils';
-import { Video, Upload, Film, Play, Loader2, Key, Clapperboard } from 'lucide-react';
+import {
+  Video, Wand2, Upload, Download, Loader2, Sparkles,
+  Play, Pause, Volume2, VolumeX, Maximize2, X,
+  Clock, Monitor, Smartphone, Film, Grid, RefreshCw,
+  Trash2, Eye, Share2, Star, Zap, Layers, AlertCircle
+} from 'lucide-react';
 import { Language } from '../types';
 import { translations } from '../translations';
 
@@ -10,265 +14,351 @@ interface VideoGenViewProps {
   lang: Language;
 }
 
-const FEATURED_TEMPLATES = [
+interface GeneratedVideo {
+  id: string;
+  videoUrl: string;
+  prompt: string;
+  timestamp: Date;
+  status: 'processing' | 'completed' | 'failed';
+  ratio: string;
+}
+
+const VIDEO_TEMPLATES = [
   {
-    label: "Aladdin's Lamp",
-    prompt: "A cute and magical golden Aladdin's lamp on a dark elegant background, the famous blue Genie from Aladdin (Disney style, muscular, big smile, energetic personality) is emerging smoothly from the lamp's spout in a swirl of sparkling blue smoke and golden sparks. The Genie is moving happily: waving his hands, nodding his head, and dancing slightly in a fun loop. Magical glowing particles and stars floating around, vibrant colors, cinematic lighting, smooth animation, seamless loop, high quality 4K, cheerful and entertaining mood, perfect for loading screen animation, 6-8 seconds duration.",
-    icon: "✨"
+    label: "Magic Genie",
+    prompt: "A cute and magical golden Aladdin's lamp on a dark elegant background, the famous blue Genie from Aladdin (Disney style, muscular, big smile, energetic personality) is emerging smoothly from the lamp's spout in a swirl of sparkling blue smoke and golden sparks. The Genie is moving happily: waving his hands, nodding his head, and dancing slightly in a fun loop. Magical glowing particles and stars floating around, vibrant colors, cinematic lighting, smooth animation, seamless loop, high quality 4K, cheerful and entertaining mood, perfect for loading screen animation.",
+    icon: "🧞‍♂️"
+  },
+  {
+    label: "Cinematic Drone",
+    prompt: "Cinematic drone shot flying over a lush tropical island with crystal clear turquoise water, white sand beaches, and deep green palm trees at sunset. 4K, realistic, highly detailed.",
+    icon: "🏝️"
   },
   {
     label: "Cyberpunk City",
-    prompt: "A futuristic cyberpunk city at night with neon lights reflecting on wet streets, flying cars passing by, cinematic lighting, 4K, highly detailed.",
-    icon: "🌃"
+    prompt: "First-person view flying through a futuristic cyberpunk city with neon neon lights, holographic billboards, and flying cars in the rain at night. Hyper-realistic, 8K.",
+    icon: "🌆"
   },
   {
-    label: "Nature Drone",
-    prompt: "A cinematic drone shot of a lush green forest with a waterfall, misty mountains in the background, 4K, hyper-realistic.",
-    icon: "🌲"
+    label: "Magic Forest",
+    prompt: "A slow camera move through an enchanted bioluminescent forest with glowing plants, mystical creatures, and floating dust particles. Ethereal, fantasy style, 4K.",
+    icon: "✨"
+  },
+  {
+    label: "Abstract Flow",
+    prompt: "Mesmerizing abstract 3D movement of liquid gold and silk flowing together in zero gravity. Smooth transitions, elegant lighting, luxurious feel.",
+    icon: "🌀"
+  },
+  {
+    label: "Space Odyssey",
+    prompt: "Cinematic approach to a massive interstellar nebula with swirling colorful gases, distant stars, and a futuristic spacecraft entering hyperspace.",
+    icon: "🌌"
   }
+];
+
+const RATIOS = [
+  { label: 'Widescreen', value: '16:9', icon: <Monitor className="w-4 h-4" /> },
+  { label: 'Portrait', value: '9:16', icon: <Smartphone className="w-4 h-4" /> },
+  { label: 'Square', value: '1:1', icon: <Grid className="w-4 h-4" /> },
 ];
 
 export const VideoGenView: React.FC<VideoGenViewProps> = ({ lang }) => {
   const [prompt, setPrompt] = useState('');
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
+  const [selectedRatio, setSelectedRatio] = useState('16:9');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
-  const [hasKey, setHasKey] = useState(false);
+  const [videos, setVideos] = useState<GeneratedVideo[]>([]);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const t = translations[lang];
 
-  useEffect(() => {
-    checkKey();
-  }, []);
-
-  const checkKey = async () => {
-    if (window.aistudio && window.aistudio.hasSelectedApiKey) {
-      const has = await window.aistudio.hasSelectedApiKey();
-      setHasKey(has);
-    } else {
-        setHasKey(true);
-    }
-  };
-
-  const handleSelectKey = async () => {
-    if (window.aistudio && window.aistudio.openSelectKey) {
-        await window.aistudio.openSelectKey();
-        await checkKey();
-    }
-  };
-
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
+    if (e.target.files?.[0]) {
       const base64 = await fileToBase64(e.target.files[0]);
       setSelectedImage(base64);
-      setGeneratedVideoUrl(null);
     }
   };
 
-  const handleGenerateVideo = async () => {
-    if (!selectedImage && !prompt) return;
-    
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.API_KEY || '' });
-    
+  const handleGenerate = async () => {
+    if (!prompt.trim() && !selectedImage) return;
+
     setIsGenerating(true);
-    setGeneratedVideoUrl(null);
+    const videoId = Date.now().toString();
+
+    // Create a temporary video record with processing state
+    const newVideo: GeneratedVideo = {
+      id: videoId,
+      videoUrl: '',
+      prompt: prompt,
+      timestamp: new Date(),
+      status: 'processing',
+      ratio: selectedRatio
+    };
+    setVideos(prev => [newVideo, ...prev]);
 
     try {
-      let operation;
-      
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+
+      const parts: any[] = [];
       if (selectedImage) {
-          operation = await ai.models.generateVideos({
-            model: 'veo-3.1-generate-preview',
-            prompt: prompt || "Cinematic shot",
-            image: {
-                imageBytes: selectedImage,
-                mimeType: 'image/png',
-            },
-            config: {
-                numberOfVideos: 1,
-                resolution: '1080p',
-                aspectRatio: aspectRatio
-            }
-          });
+        parts.push({ inlineData: { mimeType: 'image/png', data: selectedImage } });
+      }
+      parts.push({ text: `IMPERIUM CINEMATIC ENGINE: Generate a world-class, professional, smart, and powerful cinematic achievement of the highest quality. ${prompt} (Resolution: 1080p, Aspect Ratio: ${selectedRatio})` });
+
+      // Use the preview model for higher quality
+      const response = await ai.models.generateContent({
+        model: 'veo-3.1-generate-preview',
+        contents: [{ role: 'user', parts }],
+        config: {
+          responseModalities: ['VIDEO'],
+        }
+      });
+
+      if (response.candidates?.[0]?.content?.parts) {
+        for (const part of response.candidates[0].content.parts) {
+          if (part.inlineData) {
+            const videoUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+            setVideos(prev => prev.map(v =>
+              v.id === videoId ? { ...v, videoUrl, status: 'completed' } : v
+            ));
+            setIsGenerating(false);
+            return;
+          }
+        }
+      }
+      throw new Error('No video data generated');
+    } catch (error: any) {
+      console.error('Video generation error:', error);
+      setVideos(prev => prev.map(v =>
+        v.id === videoId ? { ...v, status: 'failed' } : v
+      ));
+
+      // Friendly alert
+      if (error.message?.includes('404')) {
+        alert("The video model is currently initializing. Please try again in 1-2 minutes.");
       } else {
-          operation = await ai.models.generateVideos({
-            model: 'veo-3.1-generate-preview',
-            prompt: prompt,
-            config: {
-                numberOfVideos: 1,
-                resolution: '1080p',
-                aspectRatio: aspectRatio
-            }
-          });
+        alert("An error occurred during video generation. Please check your API key.");
       }
-
-      while (!operation.done) {
-        await new Promise(resolve => setTimeout(resolve, 10000));
-        operation = await ai.operations.getVideosOperation({operation: operation});
-      }
-
-      if (operation.response?.generatedVideos?.[0]?.video?.uri) {
-        const uri = operation.response.generatedVideos[0].video.uri;
-        const finalUrl = `${uri}&key=${process.env.GEMINI_API_KEY || process.env.API_KEY || ''}`;
-        setGeneratedVideoUrl(finalUrl);
-      } else {
-          throw new Error("No video URI in response");
-      }
-
-    } catch (error) {
-      console.error("Veo Error:", error);
-      alert("Erreur lors de la génération vidéo.");
     } finally {
       setIsGenerating(false);
     }
   };
 
-  if (!hasKey) {
-      return (
-          <div className="h-full flex flex-col items-center justify-center p-6 text-center bg-black">
-              <div className="bg-zinc-900 p-10 rounded-3xl shadow-2xl max-w-md border border-amber-500/30 relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gold-shiny"></div>
-                  <Key className="w-16 h-16 text-amber-500 mx-auto mb-6" />
-                  <h2 className="text-2xl font-bold mb-3 text-amber-100 font-['Cinzel']">{t.video.accessDenied}</h2>
-                  <p className="text-zinc-400 mb-8 leading-relaxed">{t.video.accessDesc}</p>
-                  <button 
-                    onClick={handleSelectKey}
-                    className="bg-gold-shiny text-black px-8 py-4 rounded-xl font-bold hover:opacity-90 transition-transform hover:scale-105"
-                  >
-                      {t.video.authBtn}
-                  </button>
-              </div>
-          </div>
-      )
-  }
+  const downloadVideo = (video: GeneratedVideo) => {
+    const a = document.createElement('a');
+    a.href = video.videoUrl;
+    a.download = `imperium-video-${video.id}.mp4`;
+    a.click();
+  };
+
+  const deleteVideo = (id: string) => {
+    setVideos(prev => prev.filter(v => v.id !== id));
+  };
 
   return (
-    <div className="h-full flex flex-col gap-6 p-2 md:p-6 overflow-y-auto">
-      <div className="flex items-center justify-between border-b border-amber-900/20 pb-4">
+    <div className="h-full flex flex-col gap-6 p-4 md:p-8 bg-black overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#3f3f46 transparent' }}>
+
+      {/* Header */}
+      <div className="flex items-center justify-between pb-6 border-b border-amber-900/20">
         <div>
-          <h2 className="text-3xl font-bold text-gold-shiny font-['Cinzel']">{t.video.title}</h2>
-          <p className="text-zinc-500 mt-1">{t.video.subtitle}</p>
+          <h2 className="text-3xl font-bold text-amber-400 font-['Cinzel'] tracking-wider flex items-center gap-3">
+            <Video className="w-8 h-8 text-amber-500" />
+            {t.video?.title || 'World-Class Video Engine'}
+          </h2>
+          <p className="text-zinc-500 mt-1 text-sm">{t.video?.subtitle || 'AI cinematics from text or images'}</p>
         </div>
-        <Clapperboard className="w-8 h-8 text-amber-600" />
+        <div className="flex items-center gap-2">
+          <div className="px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400 text-xs font-bold tracking-widest">
+            VEO 3.1 PREVIEW
+          </div>
+        </div>
       </div>
 
-      {/* Featured Templates */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {FEATURED_TEMPLATES.map((tpl, i) => (
-          <button
-            key={i}
-            onClick={() => setPrompt(tpl.prompt)}
-            className="p-4 bg-zinc-900/50 border border-zinc-800 rounded-2xl hover:border-amber-500/40 transition-all text-left group"
-          >
-            <div className="text-2xl mb-2">{tpl.icon}</div>
-            <div className="text-xs font-bold text-amber-100 group-hover:text-amber-400 transition-colors">{tpl.label}</div>
-            <div className="text-[10px] text-zinc-500 mt-1 line-clamp-2">{tpl.prompt}</div>
-          </button>
-        ))}
-      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Left Column: Controls */}
+        <div className="lg:col-span-1 space-y-6">
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1">
-        {/* Controls */}
-        <div className="lg:col-span-4 bg-zinc-950 p-6 rounded-3xl border border-amber-900/30 shadow-2xl flex flex-col gap-6 h-fit">
-            
-            {/* Image Input */}
-            <div>
-                <label className="block text-xs uppercase tracking-widest font-bold text-amber-500/70 mb-3">{t.video.refImage}</label>
-                <div 
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`border border-dashed rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all h-40 relative overflow-hidden ${
-                    selectedImage ? 'border-amber-500/50 bg-amber-900/10' : 'border-zinc-800 hover:border-amber-500/30 hover:bg-zinc-900'
-                    }`}
+          {/* Featured Templates */}
+          <div>
+            <p className="text-[10px] uppercase font-bold tracking-widest text-amber-500/60 mb-3 flex items-center gap-2">
+              <Star className="w-3 h-3" /> Featured Blueprints
+            </p>
+            <div className="grid grid-cols-1 gap-2">
+              {VIDEO_TEMPLATES.map((tmpl, i) => (
+                <button
+                  key={i}
+                  onClick={() => setPrompt(tmpl.prompt)}
+                  className="flex items-center gap-3 p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl text-left hover:border-amber-500/40 hover:bg-zinc-900 transition-all group"
                 >
-                    <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    onChange={handleFileChange} 
-                    accept="image/*" 
-                    className="hidden" 
-                    />
-                    {selectedImage ? (
-                        <img src={`data:image/png;base64,${selectedImage}`} className="absolute inset-0 w-full h-full object-cover opacity-60" />
-                    ) : (
-                        <div className="text-center">
-                            <Upload className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
-                            <span className="text-[10px] uppercase tracking-widest text-zinc-500">{t.video.uploadRef}</span>
-                        </div>
-                    )}
-                </div>
+                  <span className="text-2xl">{tmpl.icon}</span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-zinc-300 group-hover:text-amber-400 transition-colors truncate">{tmpl.label}</p>
+                  </div>
+                </button>
+              ))}
             </div>
+          </div>
 
-            {/* Text Input */}
-            <div>
-                <label className="block text-xs uppercase tracking-widest font-bold text-amber-500/70 mb-3">{t.video.scenario}</label>
-                <textarea
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    placeholder={t.video.scenarioPlaceholder}
-                    className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl focus:outline-none focus:border-amber-500 text-zinc-200 h-32 resize-none placeholder-zinc-600"
-                />
+          {/* Ratio Selection */}
+          <div>
+            <p className="text-[10px] uppercase font-bold tracking-widest text-zinc-600 mb-3">Aspect Ratio</p>
+            <div className="grid grid-cols-3 gap-2">
+              {RATIOS.map(ratio => (
+                <button
+                  key={ratio.value}
+                  onClick={() => setSelectedRatio(ratio.value)}
+                  className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${
+                    selectedRatio === ratio.value
+                      ? 'bg-amber-500/15 border-amber-500/60 text-amber-400'
+                      : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-700'
+                  }`}
+                >
+                  {ratio.icon}
+                  <span className="text-[10px] font-bold">{ratio.label}</span>
+                </button>
+              ))}
             </div>
+          </div>
 
-            {/* Config */}
-            <div>
-                 <label className="block text-xs uppercase tracking-widest font-bold text-amber-500/70 mb-3">{t.video.ratio}</label>
-                 <div className="grid grid-cols-2 gap-3">
-                     <button 
-                        onClick={() => setAspectRatio('16:9')}
-                        className={`py-3 rounded-xl border text-xs font-bold tracking-wider transition-all ${aspectRatio === '16:9' ? 'bg-amber-500/10 border-amber-500 text-amber-400' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
-                     >
-                         {t.video.landscape}
-                     </button>
-                     <button 
-                        onClick={() => setAspectRatio('9:16')}
-                        className={`py-3 rounded-xl border text-xs font-bold tracking-wider transition-all ${aspectRatio === '9:16' ? 'bg-amber-500/10 border-amber-500 text-amber-400' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
-                     >
-                         {t.video.portrait}
-                     </button>
-                 </div>
-            </div>
-
-            <button
-              onClick={handleGenerateVideo}
-              disabled={isGenerating || (!prompt && !selectedImage)}
-              className="w-full py-4 bg-gold-shiny text-black font-bold rounded-xl hover:shadow-[0_0_20px_rgba(245,158,11,0.4)] disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-3 transition-all transform hover:-translate-y-1"
+          {/* Upload Section */}
+          <div>
+            <p className="text-[10px] uppercase font-bold tracking-widest text-zinc-600 mb-3">Input Reference (Optional)</p>
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className={`relative h-32 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all overflow-hidden ${
+                selectedImage ? 'border-amber-500/50' : 'border-zinc-800 hover:border-amber-500/30'
+              }`}
             >
-              {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Film className="w-5 h-5" />}
-              {t.video.btnProduce}
+              <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
+              {selectedImage ? (
+                <>
+                  <img src={selectedImage} alt="Reference" className="w-full h-full object-cover opacity-50" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-xs font-bold text-white bg-black/40 px-3 py-1 rounded-full">Change</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-6 h-6 text-zinc-600 mb-2" />
+                  <span className="text-xs text-zinc-500">Image-to-Video</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Prompt Section */}
+          <div className="space-y-3">
+            <label className="text-[10px] uppercase font-bold tracking-widest text-zinc-600 block">Visual Prompt</label>
+            <textarea
+              value={prompt}
+              onChange={e => setPrompt(e.target.value)}
+              placeholder="Describe the motion, scene, and cinematic style..."
+              rows={5}
+              className="w-full px-4 py-3 bg-zinc-900/60 border border-zinc-800 rounded-xl focus:outline-none focus:border-amber-500/40 text-zinc-200 placeholder-zinc-700 text-sm resize-none"
+            />
+            <button
+              onClick={handleGenerate}
+              disabled={isGenerating || (!prompt.trim() && !selectedImage)}
+              className="w-full py-4 bg-gradient-to-br from-amber-500 to-yellow-600 text-black font-bold rounded-xl hover:shadow-lg hover:shadow-amber-500/30 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all transform hover:-translate-y-0.5"
+            >
+              {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />}
+              {t.video?.btnGenerate || 'Ignite Engine'}
             </button>
+          </div>
         </div>
 
-        {/* Preview */}
-        <div className="lg:col-span-8 bg-black rounded-3xl overflow-hidden flex items-center justify-center relative shadow-2xl min-h-[500px] border border-zinc-800">
-            {/* Decoration lines */}
-            <div className="absolute top-10 left-10 w-20 h-20 border-t border-l border-amber-500/20 rounded-tl-3xl"></div>
-            <div className="absolute bottom-10 right-10 w-20 h-20 border-b border-r border-amber-500/20 rounded-br-3xl"></div>
+        {/* Right Column: Video Gallery / Display */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Active Generation */}
+          {isGenerating && (
+            <div className="aspect-video w-full bg-zinc-900/50 rounded-3xl border border-amber-500/20 flex flex-col items-center justify-center p-8 text-center animate-pulse">
+              <div className="relative w-20 h-20 mb-6">
+                <div className="absolute inset-0 border-4 border-amber-500/30 rounded-full animate-ping" />
+                <div className="absolute inset-0 border-4 border-amber-500 rounded-full border-t-transparent animate-spin" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Film className="w-8 h-8 text-amber-500" />
+                </div>
+              </div>
+              <h3 className="text-amber-400 font-['Cinzel'] text-xl mb-2">Rendering Masterpiece</h3>
+              <p className="text-zinc-500 text-sm max-w-sm">Our world-class VEO engine is processing your motion sequence. This typically takes 30-60 seconds.</p>
+            </div>
+          )}
 
-            {isGenerating ? (
-                <div className="text-center text-amber-500">
-                    <div className="relative w-32 h-32 mx-auto mb-8">
-                         <div className="absolute inset-0 border border-amber-500/20 rounded-full animate-ping"></div>
-                         <div className="absolute inset-2 border border-amber-500/40 rounded-full animate-pulse"></div>
-                         <Loader2 className="w-full h-full animate-spin p-8" />
+          {/* Video List */}
+          <div className="grid grid-cols-1 gap-6">
+            {videos.map(video => (
+              <div key={video.id} className="bg-zinc-900/40 border border-zinc-800/80 rounded-3xl overflow-hidden group">
+                <div className="relative aspect-video bg-black flex items-center justify-center">
+                  {video.status === 'completed' ? (
+                    <video
+                      src={video.videoUrl}
+                      controls
+                      autoPlay
+                      loop
+                      className="w-full h-full object-contain"
+                    />
+                  ) : video.status === 'processing' ? (
+                    <div className="flex flex-col items-center gap-4 text-amber-500/60">
+                      <Loader2 className="w-10 h-10 animate-spin" />
+                      <span className="text-xs uppercase tracking-widest font-bold">Processing Stream...</span>
                     </div>
-                    <h3 className="text-2xl font-['Cinzel'] text-gold-shiny mb-3">{t.video.generating}</h3>
-                    <p className="text-zinc-500 text-sm tracking-widest uppercase">{t.video.rendering}</p>
+                  ) : (
+                    <div className="flex flex-col items-center gap-4 text-red-500/60">
+                      <AlertCircle className="w-10 h-10" />
+                      <span className="text-xs uppercase tracking-widest font-bold">Generation Failed</span>
+                    </div>
+                  )}
+
+                  {/* Top Bar Overlay */}
+                  <div className="absolute top-0 inset-x-0 p-4 bg-gradient-to-b from-black/80 to-transparent flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-[10px] bg-amber-500 text-black px-2 py-0.5 rounded font-black uppercase tracking-tighter">1080P HD</span>
+                    <button
+                      onClick={() => deleteVideo(video.id)}
+                      className="p-1.5 bg-black/60 rounded-lg text-zinc-400 hover:text-red-400 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-            ) : generatedVideoUrl ? (
-                <video 
-                    src={generatedVideoUrl} 
-                    controls 
-                    autoPlay 
-                    loop 
-                    className="w-full h-full object-contain bg-black"
-                />
-            ) : (
-                <div className="text-zinc-600 flex flex-col items-center">
-                    <Video className="w-24 h-24 mb-6 opacity-10" />
-                    <p className="text-sm uppercase tracking-[0.2em] opacity-30 font-bold">{t.video.waiting}</p>
+
+                <div className="p-4 flex items-center justify-between bg-zinc-900 border-t border-zinc-800">
+                  <div className="min-w-0 flex-1 pr-4">
+                    <p className="text-xs text-zinc-400 line-clamp-1 italic">"{video.prompt}"</p>
+                    <div className="flex items-center gap-3 mt-1.5">
+                      <span className="text-[10px] text-zinc-600 flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> {video.timestamp.toLocaleTimeString()}
+                      </span>
+                      <span className="text-[10px] text-zinc-600 flex items-center gap-1 uppercase tracking-tighter">
+                        <Monitor className="w-3 h-3" /> {video.ratio}
+                      </span>
+                    </div>
+                  </div>
+                  {video.status === 'completed' && (
+                    <button
+                      onClick={() => downloadVideo(video)}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-zinc-800 border border-zinc-700 text-zinc-200 rounded-xl text-sm font-bold hover:bg-zinc-700 transition-all flex-shrink-0"
+                    >
+                      <Download className="w-4 h-4" />
+                      Download
+                    </button>
+                  )}
                 </div>
+              </div>
+            ))}
+
+            {videos.length === 0 && !isGenerating && (
+              <div className="py-20 flex flex-col items-center justify-center text-zinc-700">
+                <Video className="w-16 h-16 mb-4 opacity-20" />
+                <p className="font-['Cinzel'] text-sm opacity-40">Your visual masterpieces will appear here</p>
+                <div className="flex gap-4 mt-8">
+                  {['Text-to-Video', 'Image-to-Video', 'Cinematics'].map(feat => (
+                    <div key={feat} className="flex items-center gap-2 text-[10px] uppercase font-bold tracking-widest bg-zinc-900/50 px-3 py-1.5 rounded-full border border-zinc-800/50">
+                      <Zap className="w-3 h-3 text-amber-500" /> {feat}
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
+          </div>
         </div>
       </div>
     </div>

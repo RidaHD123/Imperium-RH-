@@ -1,230 +1,371 @@
-
-import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI, LiveServerMessage, Modality } from "@google/genai";
-import { Mic, MicOff, Activity, XCircle, Zap } from 'lucide-react';
-import { createPCM16Blob, decodeAudioData } from '../utils';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  Mic, MicOff, Loader2, Square, Activity, Radio,
+  Zap, Brain, Shield, Settings, Volume2
+} from 'lucide-react';
+import { GoogleGenAI, Modality } from "@google/genai";
 import { Language } from '../types';
 import { translations } from '../translations';
+import { createPCM16Blob, decodeAudioData } from '../utils';
 
 interface LiveViewProps {
   lang: Language;
 }
 
 export const LiveView: React.FC<LiveViewProps> = ({ lang }) => {
-  const t = translations[lang];
   const [isActive, setIsActive] = useState(false);
-  const [status, setStatus] = useState(t.live.ready);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // Audio Refs
-  const inputAudioContextRef = useRef<AudioContext | null>(null);
-  const outputAudioContextRef = useRef<AudioContext | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
-  const nextStartTimeRef = useRef<number>(0);
+  const [transcript, setTranscript] = useState<string[]>([]);
+  const [rms, setRms] = useState(0);
+
   const sessionRef = useRef<any>(null);
-  const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Update status text when language changes if not active
+  const t = translations[lang];
+
+  // Auto-scroll transcript
   useEffect(() => {
-    if (!isActive && !error) {
-        setStatus(t.live.ready);
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
-  }, [lang, isActive, error, t.live.ready]);
+  }, [transcript]);
 
-  const stopSession = () => {
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(track => track.stop());
-      mediaStreamRef.current = null;
-    }
-    
-    if (scriptProcessorRef.current) {
-        scriptProcessorRef.current.disconnect();
-        scriptProcessorRef.current = null;
-    }
-
-    if (inputAudioContextRef.current) {
-        inputAudioContextRef.current.close();
-        inputAudioContextRef.current = null;
-    }
-    if (outputAudioContextRef.current) {
-        outputAudioContextRef.current.close();
-        outputAudioContextRef.current = null;
-    }
-
-    sourcesRef.current.forEach(s => s.stop());
-    sourcesRef.current.clear();
-    
+  const stopLive = useCallback(async () => {
     setIsActive(false);
-    setStatus(t.live.closed);
-  };
+    setIsConnecting(false);
+    setIsMuted(false);
 
-  const startSession = async () => {
-    setError(null);
-    setStatus(t.live.initializing);
-    
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      
-      inputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-      outputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
-      
-      const outputNode = outputAudioContextRef.current.createGain();
-      outputNode.connect(outputAudioContextRef.current.destination);
-
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-
-      const sessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
-        callbacks: {
-          onopen: () => {
-            setStatus(t.live.active);
-            setIsActive(true);
-
-            if (!inputAudioContextRef.current) return;
-            
-            const source = inputAudioContextRef.current.createMediaStreamSource(stream);
-            const processor = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
-            scriptProcessorRef.current = processor;
-
-            processor.onaudioprocess = (e) => {
-              const inputData = e.inputBuffer.getChannelData(0);
-              const pcmBlob = createPCM16Blob(inputData);
-              
-              sessionPromise.then((session) => {
-                session.sendRealtimeInput({ media: pcmBlob });
-              });
-            };
-
-            source.connect(processor);
-            processor.connect(inputAudioContextRef.current.destination);
-          },
-          onmessage: async (message: LiveServerMessage) => {
-             const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-             if (base64Audio && outputAudioContextRef.current) {
-                const ctx = outputAudioContextRef.current;
-                nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime);
-                
-                const audioBuffer = await decodeAudioData(
-                    new Uint8Array(atob(base64Audio).split('').map(c => c.charCodeAt(0))),
-                    ctx
-                );
-                
-                const source = ctx.createBufferSource();
-                source.buffer = audioBuffer;
-                source.connect(outputNode);
-                source.addEventListener('ended', () => {
-                    sourcesRef.current.delete(source);
-                });
-                
-                source.start(nextStartTimeRef.current);
-                nextStartTimeRef.current += audioBuffer.duration;
-                sourcesRef.current.add(source);
-             }
-
-             if (message.serverContent?.interrupted) {
-                sourcesRef.current.forEach(s => s.stop());
-                sourcesRef.current.clear();
-                nextStartTimeRef.current = 0;
-             }
-          },
-          onclose: () => {
-            setStatus(t.live.closed);
-            setIsActive(false);
-          },
-          onerror: (err) => {
-            console.error(err);
-            setError(t.live.error);
-            stopSession();
-          }
-        },
-        config: {
-            responseModalities: [Modality.AUDIO],
-            speechConfig: {
-                voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
-            },
-            systemInstruction: t.live.systemInstruction
-        }
-      });
-      
-      sessionRef.current = sessionPromise;
-
-    } catch (err) {
-      console.error("Failed to start live session", err);
-      setError(t.live.error);
-      stopSession();
+    if (sessionRef.current) {
+      sessionRef.current.close();
+      sessionRef.current = null;
     }
-  };
 
-  useEffect(() => {
-    return () => stopSession();
+    processorRef.current?.disconnect();
+    processorRef.current = null;
+
+    streamRef.current?.getTracks().forEach(track => track.stop());
+    streamRef.current = null;
+
+    if (audioContextRef.current?.state !== 'closed') {
+      try {
+        await audioContextRef.current?.close();
+      } catch (e) {
+        console.warn('AudioContext close error:', e);
+      }
+    }
+    audioContextRef.current = null;
   }, []);
 
+  const startLive = async () => {
+    try {
+      setIsConnecting(true);
+      setError(null);
+      setTranscript(['System: Synchronizing with IMPERIUM Neural Link...']);
+
+      const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+      if (!apiKey) throw new Error('API Key missing. Please check your settings.');
+
+      const ai = new GoogleGenAI({ apiKey });
+
+      const ctx = new AudioContext({ sampleRate: 16000 });
+      audioContextRef.current = ctx;
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+
+      const source = ctx.createMediaStreamSource(stream);
+      const processor = ctx.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
+
+      const session = await ai.live.connect({
+        model: "gemini-3.1-flash-live-preview",
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } },
+          },
+          systemInstruction: "You are IMPERIUM Intelligence. Use a professional, calm, and authoritative voice. You are a world-class consultant expert in strategy, finance, and technology. Your intelligence is superior, smart, professional, and powerful. Every response must be deeply insightful and of the highest quality.",
+          inputAudioTranscription: {},
+          outputAudioTranscription: {},
+        },
+        callbacks: {
+          onopen: () => {
+            setIsActive(true);
+            setIsConnecting(false);
+            setTranscript(prev => [...prev.slice(-10), 'System: Secure quantum link established.']);
+          },
+          onmessage: async (message) => {
+            if (message.serverContent?.modelTurn?.parts?.[0]?.inlineData) {
+              const audioData = message.serverContent.modelTurn.parts[0].inlineData.data;
+              const binary = atob(audioData);
+              const bytes = new Uint8Array(binary.length);
+              for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+              if (audioContextRef.current) {
+                const buffer = await decodeAudioData(bytes, audioContextRef.current, 24000);
+                const source = audioContextRef.current.createBufferSource();
+                source.buffer = buffer;
+                source.connect(audioContextRef.current.destination);
+                source.start();
+              }
+            }
+
+            if (message.serverContent?.modelTurn?.parts?.[0]?.text) {
+              const text = message.serverContent.modelTurn.parts[0].text;
+              setTranscript(prev => [...prev.slice(-20), `IMPERIUM: ${text}`]);
+            }
+
+            if (message.serverContent?.interrupted) {
+              // Interruption logic could go here
+              console.log('Interrupted');
+            }
+          },
+          onerror: (e) => {
+            console.error('Live Error:', e);
+            setError('Neural link unstable. Recalibrating...');
+            stopLive();
+          },
+          onclose: () => {
+            setTranscript(prev => [...prev, 'System: Uplink terminated.']);
+            stopLive();
+          }
+        }
+      });
+
+      sessionRef.current = session;
+
+      processor.onaudioprocess = (e) => {
+        if (!sessionRef.current || isMuted) return;
+
+        const inputData = e.inputBuffer.getChannelData(0);
+        let sum = 0;
+        for (let i = 0; i < inputData.length; i++) sum += inputData[i] * inputData[i];
+        setRms(Math.sqrt(sum / inputData.length));
+
+        const pcmData = createPCM16Blob(inputData);
+        sessionRef.current.sendRealtimeInput({
+          audio: {
+            data: pcmData.data,
+            mimeType: pcmData.mimeType
+          }
+        });
+      };
+
+      source.connect(processor);
+      processor.connect(ctx.destination);
+
+    } catch (err: any) {
+      console.error('Live setup fail:', err);
+      setError(err.message || 'Quantum initialization failed.');
+      setIsConnecting(false);
+      stopLive();
+      
+      if (err.message?.includes('404')) {
+        setError('Model still initializing. Please wait a moment and try again.');
+      }
+    }
+  };
+
   return (
-    <div className="h-full flex flex-col items-center justify-center p-6 bg-black text-white overflow-hidden relative">
-      {/* Background Decoration */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-amber-600/10 rounded-full blur-[150px] transition-all duration-1000 ${isActive ? 'scale-125 opacity-40' : 'scale-100 opacity-20'}`}></div>
+    <div className="h-full flex flex-col bg-black overflow-hidden relative">
+      {/* Background Ambience */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[50vh] bg-gradient-to-b from-amber-600/10 via-amber-500/5 to-transparent blur-3xl opacity-50" />
+        <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
       </div>
 
-      <div className="relative z-10 flex flex-col items-center gap-10 max-w-lg w-full">
-        <div className="text-center space-y-3">
-             <h2 className="text-4xl font-bold tracking-wider font-['Cinzel'] text-gold-shiny">{t.live.title}</h2>
-             <p className={`text-sm uppercase tracking-[0.3em] transition-colors ${isActive ? 'text-amber-400' : 'text-zinc-500'}`}>{status}</p>
-             {error && <p className="text-red-400 text-xs bg-red-950/30 border border-red-900/50 px-4 py-2 rounded">{error}</p>}
-        </div>
-
-        {/* Visualizer / Status Circle */}
-        <div className="relative group">
-            <div className={`w-56 h-56 rounded-full border border-amber-900/30 flex items-center justify-center transition-all duration-700 ${
-                isActive ? 'bg-amber-950/20 shadow-[0_0_80px_rgba(245,158,11,0.2)] border-amber-500/50' : 'bg-zinc-900/50'
-            }`}>
-                {isActive ? (
-                    <div className="relative">
-                        <div className="absolute inset-0 bg-amber-500 blur-xl opacity-20 animate-pulse"></div>
-                        <Activity className="w-24 h-24 text-gold-shiny animate-pulse relative z-10" />
-                    </div>
-                ) : (
-                    <Zap className="w-20 h-20 text-zinc-700 group-hover:text-zinc-600 transition-colors" />
-                )}
+      {/* Header */}
+      <div className="relative z-10 px-6 py-4 flex items-center justify-between border-b border-amber-900/20 bg-black/60 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className={`p-2 rounded-xl border transition-all duration-500 ${isActive ? 'bg-amber-500/10 border-amber-500/40 text-amber-400' : 'bg-zinc-900 border-zinc-800 text-zinc-600'}`}>
+              <Radio className={`w-5 h-5 ${isActive ? 'animate-pulse' : ''}`} />
             </div>
-            
-            {/* Rotating Rings */}
-            {isActive && (
-                <>
-                    <div className="absolute inset-[-20px] border border-amber-500/20 rounded-full animate-[spin_10s_linear_infinite]"></div>
-                    <div className="absolute inset-[-40px] border border-amber-500/10 rounded-full animate-[spin_15s_linear_infinite_reverse]"></div>
-                </>
-            )}
+            {isActive && <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-black animate-ping" />}
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-amber-200 font-['Cinzel'] tracking-widest">{t.live?.title || 'Neural Stream'}</h2>
+            <div className="flex items-center gap-2">
+               <span className={`text-[9px] uppercase font-bold tracking-tighter ${isActive ? 'text-green-500' : 'text-zinc-600'}`}>
+                {isActive ? '● Established' : '○ Standby'}
+               </span>
+               <span className="text-[9px] text-zinc-700 font-mono">LATENCY: {isActive ? '24ms' : '--'}</span>
+            </div>
+          </div>
         </div>
 
-        {/* Controls */}
-        <div className="flex items-center gap-6">
-            {!isActive ? (
-                <button 
-                    onClick={startSession}
-                    className="flex items-center gap-3 bg-gold-shiny text-black px-10 py-5 rounded-full font-bold text-lg shadow-[0_0_30px_rgba(180,83,9,0.3)] transition-all transform hover:scale-105 hover:shadow-[0_0_50px_rgba(180,83,9,0.5)]"
-                >
-                    <Mic className="w-6 h-6" />
-                    {t.live.btnConnect}
-                </button>
-            ) : (
-                <button 
-                    onClick={stopSession}
-                    className="flex items-center gap-3 bg-black border border-red-900/50 text-red-500 px-10 py-5 rounded-full font-bold text-lg hover:bg-red-950/20 transition-all"
-                >
-                    <MicOff className="w-6 h-6" />
-                    {t.live.btnEnd}
-                </button>
-            )}
-        </div>
-        
-        <div className="flex items-center gap-2 text-zinc-600 text-[10px] uppercase tracking-widest">
-            <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-green-500 animate-pulse' : 'bg-zinc-700'}`}></div>
-            {t.live.secure}
+        <div className="flex items-center gap-3">
+           {isActive && (
+             <div className="flex items-center gap-4 mr-4">
+               <div className="text-[10px] text-zinc-500 font-mono hidden md:block">ENCRYPTION: 256-BIT AES</div>
+               <div className="flex items-center gap-1">
+                 {[1,2,3,4].map(i => (
+                   <div
+                    key={i}
+                    className="w-1 bg-amber-500 rounded-full transition-all duration-100"
+                    style={{ height: `${isActive ? 4 + Math.random() * 16 : 4}px` }}
+                   />
+                 ))}
+               </div>
+             </div>
+           )}
+           <button
+            onClick={() => {}}
+            className="p-2 text-zinc-600 hover:text-amber-400 hover:bg-zinc-900 rounded-xl transition-all border border-transparent hover:border-zinc-800"
+           >
+             <Settings className="w-4 h-4" />
+           </button>
         </div>
       </div>
+
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-6 space-y-12">
+
+        {/* Neural Core Visualization */}
+        <div className="relative group cursor-pointer" onClick={isActive ? stopLive : startLive}>
+          <div className={`absolute inset-0 bg-amber-500/20 rounded-full blur-[80px] transition-all duration-1000 ${isActive ? 'scale-125 opacity-100' : 'scale-75 opacity-0'}`} />
+
+          <div className={`relative w-48 h-48 md:w-64 md:h-64 rounded-full border-2 flex items-center justify-center transition-all duration-700 transform ${
+            isActive
+              ? 'border-amber-500/50 shadow-[0_0_60px_-15px_rgba(245,158,11,0.5)] scale-105'
+              : 'border-zinc-800 bg-zinc-900/40 hover:border-amber-500/30'
+          }`}>
+
+            {/* Pulsing rings */}
+            {isActive && (
+              <>
+                <div className="absolute inset-4 border border-amber-500/20 rounded-full animate-[ping_3s_linear_infinite]" />
+                <div className="absolute inset-8 border border-amber-500/10 rounded-full animate-[ping_2s_linear_infinite_0.5s]" />
+              </>
+            )}
+
+            {/* Floating particles (fake) */}
+            {isActive && Array.from({ length: 8 }).map((_, i) => (
+              <div
+                key={i}
+                className="absolute w-1 h-1 bg-amber-400 rounded-full animate-pulse"
+                style={{
+                  top: `${50 + 40 * Math.sin(i * Math.PI / 4)}%`,
+                  left: `${50 + 40 * Math.cos(i * Math.PI / 4)}%`,
+                }}
+              />
+            ))}
+
+            <div className="flex flex-col items-center gap-3">
+              {isConnecting ? (
+                <Loader2 className="w-12 h-12 text-amber-500 animate-spin" />
+              ) : isActive ? (
+                <div className="flex items-end gap-1.5 h-16">
+                   {Array.from({ length: 12 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="w-1.5 bg-amber-500 rounded-full animate-bounce"
+                        style={{
+                          height: `${10 + (rms * 150 * (0.5 + Math.random() * 0.5))}px`,
+                          animationDelay: `${i * 0.1}s`,
+                          animationDuration: '0.4s'
+                        }}
+                      />
+                   ))}
+                </div>
+              ) : (
+                <Brain className="w-16 h-16 text-zinc-700 group-hover:text-amber-500/50 transition-colors duration-500" />
+              )}
+              <span className={`text-[11px] font-bold uppercase tracking-[0.2em] transition-colors duration-500 ${isActive ? 'text-amber-400' : 'text-zinc-600'}`}>
+                {isConnecting ? 'Initialising' : isActive ? 'Connected' : 'Begin Uplink'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Controls Overlay */}
+        <div className={`flex items-center gap-4 transition-all duration-500 ${isActive || isConnecting ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0 pointer-events-none'}`}>
+          <button
+            onClick={() => setIsMuted(!isMuted)}
+            className={`p-4 rounded-2xl border transition-all ${
+              isMuted
+                ? 'bg-red-500/10 border-red-500/50 text-red-500'
+                : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-amber-400 hover:border-amber-500/40'
+            }`}
+          >
+            {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+          </button>
+
+          <button
+            onClick={stopLive}
+            className="px-8 py-4 bg-red-600 hover:bg-red-500 text-white font-bold rounded-2xl transition-all shadow-xl shadow-red-900/20 active:scale-95 flex items-center gap-3"
+          >
+            <Square className="w-5 h-5 fill-current" />
+            {t.live?.end || 'Terminate'}
+          </button>
+
+          <button
+            onClick={() => {}}
+            className="p-4 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded-2xl hover:text-amber-400 hover:border-amber-500/40 transition-all"
+          >
+            <Volume2 className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Real-time Subtitles */}
+        <div
+          ref={containerRef}
+          className={`w-full max-w-2xl h-32 overflow-y-auto px-6 space-y-2 text-center transition-all duration-1000 ${isActive ? 'opacity-100' : 'opacity-0'}`}
+          style={{ scrollbarWidth: 'none' }}
+        >
+          {transcript.map((line, i) => (
+            <p
+              key={i}
+              className={`text-sm tracking-wide ${
+                i === transcript.length - 1
+                  ? 'text-amber-100 font-medium'
+                  : 'text-zinc-600 opacity-50'
+              }`}
+            >
+              {line}
+            </p>
+          ))}
+          {transcript.length === 0 && isActive && (
+             <p className="text-zinc-600 italic text-sm animate-pulse">Waiting for IMPERIUM to respond...</p>
+          )}
+        </div>
+      </div>
+
+      {/* Security Banner */}
+      <div className="relative z-10 px-6 py-3 bg-zinc-900/20 border-t border-amber-900/10 flex items-center justify-center gap-6">
+        <div className="flex items-center gap-2 text-[10px] text-zinc-600 uppercase tracking-widest">
+          <Shield className="w-3 h-3 text-amber-700" /> End-to-End Encryption
+        </div>
+        <div className="flex items-center gap-2 text-[10px] text-zinc-600 uppercase tracking-widest">
+          <Activity className="w-3 h-3 text-amber-700" /> REAL-TIME NEURAL FEED
+        </div>
+        <div className="flex items-center gap-2 text-[10px] text-zinc-600 uppercase tracking-widest">
+          <Zap className="w-3 h-3 text-amber-700" /> LOW-LATENCY TRANSMISSION
+        </div>
+      </div>
+
+      {/* Full-screen loading/connecting overlay */}
+      {isConnecting && (
+        <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-xl flex flex-col items-center justify-center space-y-6">
+           <div className="relative">
+              <Loader2 className="w-16 h-16 text-amber-500 animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                 <Zap className="w-6 h-6 text-amber-400" />
+              </div>
+           </div>
+           <div className="text-center">
+             <h3 className="text-amber-200 font-['Cinzel'] text-xl mb-1 tracking-widest">Neural Syncing</h3>
+             <p className="text-zinc-500 text-xs uppercase tracking-[0.3em]">Calibrating Response Node...</p>
+           </div>
+           <div className="w-64 h-1 bg-zinc-900 rounded-full overflow-hidden">
+             <div className="h-full bg-amber-500 animate-[loading_2s_ease-in-out_infinite]" />
+           </div>
+        </div>
+      )}
     </div>
   );
 };
